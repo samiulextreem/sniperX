@@ -69,8 +69,8 @@ python test_modules.py
 - **NEUTRAL** ⚖️: Mixed sentiment, monitor only
 
 ### Urgency Levels
-- **CRITICAL**: >85% confidence - Act immediately
-- **HIGH**: 70-85% confidence - Consider action soon
+- **CRITICAL**: >85% confidence - High confidence signal, requires immediate attention
+- **HIGH**: 70-85% confidence - Strong signal, consider analysis soon
 - **MEDIUM**: 50-70% confidence - Monitor closely
 - **LOW**: <50% confidence - Informational only
 
