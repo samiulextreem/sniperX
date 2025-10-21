@@ -1,0 +1,27 @@
+# Virtual environment
+Include/
+Lib/
+Scripts/
+share/
+etc/
+pyvenv.cfg
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Generated data and snapshots
+snapshots/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
