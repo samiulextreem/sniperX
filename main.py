@@ -13,6 +13,12 @@ from ping_server import start_ping_server, ping_data
 from balance_manager import record_buy, record_sell, get_balance, get_position
 
 
+def format_time(seconds):
+	"""Convert seconds to MM:SS format"""
+	minutes = int(seconds // 60)
+	secs = int(seconds % 60)
+	return f"{minutes:02d}:{secs:02d}"
+
 def main():
 	"""Main function - simple orderbook collection every second"""
 	
@@ -27,7 +33,16 @@ def main():
 	min_value = float(config.get('min_value', 20.0))
 	sell_timeout = int(config.get('sell_timeout', 100))  # seconds
 	
-	# Quiet mode: no startup console prints
+	# Print startup info
+	print("\n" + "="*70)
+	print("🎯 SNIPERX STARTED")
+	print("="*70)
+	print(f"📊 Tracking: {len(tokens)} token(s)")
+	print(f"💰 Investment per trade: ${investment:.2f}")
+	print(f"⏱️  Auto-sell timeout: {format_time(sell_timeout)}")
+	print(f"🌐 Ping server running on: http://0.0.0.0:5000/ping")
+	print("="*70 + "\n")
+	print("⏳ Waiting for ping signal...\n")
 	
 	# Track sell timers for each token
 	sell_timers = {}  # {slug: datetime when timer started}
@@ -51,20 +66,26 @@ def main():
 							# We have a position - check if timer exists
 							if slug in sell_timers:
 								# Timer already running - reset it
-								sys.stdout.write("\r" + " " * 80 + "\r")  # Clear countdown line
+								sys.stdout.write("\r" + " " * 100 + "\r")  # Clear countdown line
 								sys.stdout.flush()
 								sell_timers[slug] = datetime.now()
-								print(f"\n{slug}: Timer reset ({sell_timeout}s to auto-sell)")
+								print(f"\n{'─'*70}")
+								print(f"🔄 TIMER RESET - {slug.upper()}")
+								print(f"⏱️  Auto-sell in: {format_time(sell_timeout)}")
+								print(f"{'─'*70}\n")
 							else:
 								# Position exists but no timer (maybe from restart) - don't start timer
-								print(f"\n{slug}: Position exists, waiting for next ping to start timer")
+								print(f"\n{'─'*70}")
+								print(f"📌 POSITION DETECTED - {slug.upper()}")
+								print(f"💡 Waiting for next ping to start timer")
+								print(f"{'─'*70}\n")
 						else:
 							# No position - try to buy
 							available_balance = get_balance()
 							investment_amount = min(investment, available_balance)
 							
 							# Save snapshot (quiet) and include trade plan using available balance
-							_, trade_info = save_orderbook_snapshot(orderbook_data, token_id, min_value=min_value, slug=slug, investment=investment_amount)
+							_, trade_info = save_orderbook_snapshot(orderbook_data, token_id, min_value=min_value, slug=slug, investment=investment_amount, trade_type="BUY")
 							
 							# Minimal console: show each fill individually and record transaction
 							if trade_info and 'fills' in trade_info:
@@ -77,19 +98,26 @@ def main():
 									new_balance = get_balance()
 									position = get_position(slug)
 									
-									print(f"\n{(slug or token_id[:10]+'...')}: saved")
+									print(f"\n{'═'*70}")
+									print(f"✅ BUY ORDER EXECUTED - {slug.upper()}")
+									print(f"{'═'*70}")
 									for f in fills:
-										print(f"  Buy {f['shares']:.2f} @ ${f['price']:.3f} = ${f['cost']:.2f}")
-									print(f"  Total: {total_shares:.2f} shares for ${total_spent:.2f}")
-									print(f"  Balance: ${new_balance:.2f} | Position: {position['shares']:.2f} shares @ ${position['avg_cost']:.3f} avg")
+										print(f"  📈 Buy {f['shares']:.2f} shares @ ${f['price']:.3f} = ${f['cost']:.2f}")
+									print(f"  ───────────────────────────────────")
+									print(f"  💰 Total Spent:     ${total_spent:.2f}")
+									print(f"  📊 Total Shares:    {total_shares:.2f}")
+									print(f"  💵 Avg Cost:        ${position['avg_cost']:.3f}")
+									print(f"  💼 Balance:         ${new_balance:.2f}")
+									print(f"{'═'*70}")
 									
 									# Start sell timer ONLY after buy
 									sell_timers[slug] = datetime.now()
-									print(f"  ⏱️  Sell timer started ({sell_timeout}s)")
+									print(f"⏱️  AUTO-SELL TIMER STARTED: {format_time(sell_timeout)}")
+									print(f"{'═'*70}\n")
 								else:
-									print(f"{(slug or token_id[:10]+'...')}: saved, insufficient balance")
+									print(f"\n⚠️  {slug.upper()}: Insufficient balance\n")
 							else:
-								print(f"{(slug or token_id[:10]+'...')}: saved, no asks available")
+								print(f"\n⚠️  {slug.upper()}: No liquidity available\n")
 				last_seen_count = current_count
 			
 			# Check sell timers and display countdown
@@ -103,18 +131,34 @@ def main():
 					
 					# Display countdown (update in place)
 					if time_remaining > 0:
-						sys.stdout.write(f"\r⏱️  {slug}: {time_remaining}s remaining")
+						time_str = format_time(time_remaining)
+						# Create a nice progress bar
+						progress_percent = (time_elapsed / sell_timeout) * 100
+						bar_length = 30
+						filled_length = int(bar_length * progress_percent / 100)
+						bar = '█' * filled_length + '░' * (bar_length - filled_length)
+						
+						sys.stdout.write(f"\r⏱️  [{bar}] {slug.upper()}: {time_str} remaining   ")
 						sys.stdout.flush()
 					
 					if time_elapsed >= sell_timeout:
 						# Timer expired - sell the position
 						position = get_position(slug)
 						if position and position['shares'] > 0:
-							print(f"\n⏰ Timer expired for {slug} - Auto-selling position...")
+							# Clear the countdown line before printing results
+							sys.stdout.write("\r" + " " * 100 + "\r")
+							sys.stdout.flush()
+							
+							print(f"\n{'═'*70}")
+							print(f"⏰ TIMER EXPIRED - AUTO-SELLING {slug.upper()}")
+							print(f"{'═'*70}")
 							
 							# Fetch current orderbook to get best bid prices
 							orderbook_data = fetch_orderbook(token_id)
 							if orderbook_data:
+								# Save snapshot before selling
+								save_orderbook_snapshot(orderbook_data, token_id, min_value=min_value, slug=slug, investment=0, trade_type="SELL")
+								
 								bids = orderbook_data.get('bids', [])
 								
 								# Sort bids by price (high to low) to sell at best prices
@@ -143,32 +187,38 @@ def main():
 								if record_sell(slug, position['shares'], total_proceeds):
 									new_balance = get_balance()
 									profit = total_proceeds - position['total_invested']
+									profit_emoji = "🟢" if profit > 0 else "🔴" if profit < 0 else "⚪"
 									
-									# Clear the countdown line before printing results
-									sys.stdout.write("\r" + " " * 80 + "\r")
-									sys.stdout.flush()
-									
-									print(f"  Sold {position['shares']:.2f} shares:")
+									print(f"💼 SELL ORDER EXECUTED")
+									print(f"{'─'*70}")
 									for f in sell_fills:
-										print(f"    Sell {f['shares']:.2f} @ ${f['price']:.3f} = ${f['proceeds']:.2f}")
-									print(f"  Total proceeds: ${total_proceeds:.2f}")
-									print(f"  Profit/Loss: ${profit:+.2f}")
-									print(f"  New balance: ${new_balance:.2f}")
+										print(f"  📉 Sell {f['shares']:.2f} shares @ ${f['price']:.3f} = ${f['proceeds']:.2f}")
+									print(f"  ───────────────────────────────────")
+									print(f"  💵 Total Proceeds:  ${total_proceeds:.2f}")
+									print(f"  📊 Shares Sold:     {position['shares']:.2f}")
+									print(f"  {profit_emoji} Profit/Loss:    ${profit:+.2f}")
+									print(f"  💼 New Balance:     ${new_balance:.2f}")
+									print(f"{'═'*70}\n")
 									
 									# Remove timer
 									del sell_timers[slug]
 								else:
-									print(f"  Failed to record sell for {slug}")
+									print(f"❌ Failed to record sell for {slug}")
+									print(f"{'═'*70}\n")
 									del sell_timers[slug]
 							else:
-								print(f"  Failed to fetch orderbook for selling {slug}")
+								print(f"❌ Failed to fetch orderbook for selling")
+								print(f"{'═'*70}\n")
 								del sell_timers[slug]
 			
 			# Small sleep to avoid busy-waiting
 			time.sleep(0.2)
 			
 	except KeyboardInterrupt:
-		print("\nStopping collection...")
+		print("\n\n" + "="*70)
+		print("🛑 SNIPERX STOPPED")
+		print("="*70)
+		print("👋 Goodbye!\n")
 
 if __name__ == "__main__":
 	main()

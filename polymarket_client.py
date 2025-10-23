@@ -31,7 +31,7 @@ def fetch_orderbook(token_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def save_orderbook_snapshot(orderbook_data: Dict[str, Any], token_id: str, min_value: float = 20.0, slug: Optional[str] = None, investment: float = 0.0) -> tuple[str, Optional[Dict[str, float]]]:
+def save_orderbook_snapshot(orderbook_data: Dict[str, Any], token_id: str, min_value: float = 20.0, slug: Optional[str] = None, investment: float = 0.0, trade_type: str = "BUY") -> tuple[str, Optional[Dict[str, float]]]:
     """
     Save orderbook data to a readable text file with timestamp, filtering out orders with value < min_value
     The file will be saved under: snapshots/<slug_or_idprefix>/<timestamp>/
@@ -41,6 +41,7 @@ def save_orderbook_snapshot(orderbook_data: Dict[str, Any], token_id: str, min_v
         token_id (str): The token ID for filename
         min_value (float): Minimum value threshold (price * size)
         slug (str, optional): Human-friendly name used for folder and filename
+        trade_type (str): "BUY" or "SELL" to label the snapshot
         
     Returns:
         str: The filename where the snapshot was saved
@@ -59,10 +60,11 @@ def save_orderbook_snapshot(orderbook_data: Dict[str, Any], token_id: str, min_v
     
     timestamp_str = f"{month_abbr}{day}_{hour}_{minute}_{second}"
     slug_or_prefix = (slug or (token_id[:10]))
+    trade_label = trade_type.upper()
     
     filename = os.path.join(
         base_dir,
-        f"orderbook_{slug_or_prefix}_{timestamp_str}.txt"
+        f"{trade_label}_{slug_or_prefix}_{timestamp_str}.txt"
     )
     
     # Filter bids and asks based on minimum value
@@ -127,8 +129,15 @@ def save_orderbook_snapshot(orderbook_data: Dict[str, Any], token_id: str, min_v
     # Compute realistic trade plan by filling orders across the orderbook
     trade_line = ""
     trade_info = None
-    if filtered_asks and investment > 0:
-        # Sort asks by price (low to high) to fill from best prices first
+    
+    if trade_type == "SELL":
+        # For SELL snapshots, show best bid prices available
+        if filtered_bids:
+            trade_line = f"Market snapshot for SELL - Best bid: ${filtered_bids[0]['price']:.3f}"
+        else:
+            trade_line = "Market snapshot for SELL - No bids available"
+    elif filtered_asks and investment > 0:
+        # BUY: Sort asks by price (low to high) to fill from best prices first
         sorted_asks = sorted(filtered_asks, key=lambda x: x['price'])
         
         remaining_investment = investment

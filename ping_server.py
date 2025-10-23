@@ -32,12 +32,16 @@ def ping():
     else:
         received_text = request.args.get('text')
     
+    # Display incoming ping
+    print(f"\n{'─'*70}")
+    print(f"📱 PING RECEIVED from {request.remote_addr}")
     if received_text:
         ping_data['last_text'] = received_text
-        print(f"📱 Received text: '{received_text}'")
+        print(f"📝 Message: '{received_text}'")
     else:
         received_text = "No text provided"
-        print("📱 Received ping without text payload")
+        print(f"📝 Message: (none)")
+    print(f"{'─'*70}\n")
     
     # Update ping data
     ping_data['last_ping'] = datetime.datetime.now()
@@ -81,9 +85,10 @@ def home():
 
 def start_ping_server():
     """Start the ping server"""
-    print("🚀 Starting ping server on http://0.0.0.0:5000")
-    print("📱 Android app should send POST requests to: http://YOUR_PC_IP:5000/ping")
-    print("📋 Expected payload format: {\"text\": \"your message\"}")
+    import logging
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)  # Suppress Flask's request logging
+    
     app.run(host='0.0.0.0', port=5000, debug=False)
 
 if __name__ == '__main__':
