@@ -1,0 +1,10 @@
+# Start ngrok tunnel for port 5000 (Flask ping server)
+# Using your reserved ngrok domain
+ngrok http --domain=unmethodized-eryn-unprocured.ngrok-free.dev 5000
+
+# Your public URL (always the same):
+# https://unmethodized-eryn-unprocured.ngrok-free.dev
+
+# Ping endpoints:
+# https://unmethodized-eryn-unprocured.ngrok-free.dev/ping?text=test
+# https://unmethodized-eryn-unprocured.ngrok-free.dev/status
